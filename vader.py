@@ -32,6 +32,9 @@ class VaderModel(object):
     def name(self):
         return "Vader"
 
+    def model_name_long(self):
+        return "pretrained #VADER model from #NLTK"
+
     def get_classifier(self):
         return self.classifier
 

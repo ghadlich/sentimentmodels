@@ -30,6 +30,9 @@ class TransformerModel(object):
     def name(self):
         return "Transformer"
 
+    def model_type(self):
+        return "pretrained #BERT model from #huggingface"
+
     def get_classifier(self):
         return self.classifier
 

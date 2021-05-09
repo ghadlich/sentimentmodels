@@ -152,6 +152,9 @@ class NaiveBayesModel(object):
     def name(self):
         return "NaiveBayes"
 
+    def model_type(self):
+        return "#NaiveBayes model from #NLTK"
+
     def get_classifier(self):
         return self.classifier
 
