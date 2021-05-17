@@ -26,9 +26,10 @@ sys.path.append("../sentimentmodels")
 from vader import VaderModel
 from naive_bayes import NaiveBayesModel
 from transformer import TransformerModel
+from distilbert import DistilBertModel
 
 def get_models():
-    models = [VaderModel(), NaiveBayesModel(), TransformerModel()]
+    models = [TransformerModel(), VaderModel(), NaiveBayesModel(), DistilBertModel()]
 
     return models
 

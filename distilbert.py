@@ -20,32 +20,41 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE. 
-from transformers import pipeline
+import torch
+from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 
-class TransformerModel(object):
+classes = ["Negative", "Positive"]
 
-    def __init__(self):
-        self.classifier = pipeline('sentiment-analysis')
+class DistilBertModel(object):
+
+    def __init__(self, path="./distilbert.pb"):
+        self.device = torch.device('cpu')
+        self.classifier = torch.load(path, map_location=self.device)
+        self.classifier.eval()
+
+        self.tokenizer = DistilBertTokenizerFast.from_pretrained('distilbert-base-uncased')
+        self.labels = torch.tensor([1]).unsqueeze(0)
 
     def name(self):
-        return "Transformer"
+        return "DistilBert"
 
     def model_name_long(self):
-        return "pretrained #BERT model from #huggingface"
+        return "trained #DistilBert model from #huggingface"
 
     def get_classifier(self):
         return self.classifier
 
-    def predict(self, input_tweet):
-        result = self.classifier(input_tweet)
-        if (result[0]['score'] < .75):
-            result[0]['label'] = "Neutral"
-        elif result[0]['label'] == "POSITIVE":
-            result[0]['label'] = "Positive"
-        else:
-            result[0]['label'] = "Negative"
+    def predict(self, text):
+        inputs = self.tokenizer([text],
+                                truncation=True,
+                                padding=True,
+                                return_tensors="pt")
+        outputs = self.classifier(**inputs, labels=self.labels)
+        loss, logits = outputs[:2]
+        prediction = logits.max(1).indices
+        score = torch.softmax(logits, dim=1).tolist()[0]
 
-        return result[0]['label'], result[0]['score']
+        return classes[prediction], score[prediction]
 
     def create_text(self, data):
         positive = sum(data["Positive"].values())
@@ -58,7 +67,7 @@ class TransformerModel(object):
 
         total_str = str(total)
 
-        text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a pretrained #BERT model from #huggingface. "
+        text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a {self.model_name_long()}. "
         if (positive>(negative+neutral)):
             text += f"A majority ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
         elif (positive>negative and positive>neutral):
@@ -74,13 +83,13 @@ class TransformerModel(object):
         else:
             text += f"There were an equal amount of positive, neutral, and negative tweets."
 
-        text += "\n#Python #NLP #Classification #Sentiment #GrantBot"
+        text += "\n#Python #NLP #PyTorch #Sentiment #GrantBot"
 
         return text
 
 if __name__ == "__main__":
 
-    model = TransformerModel()
+    model = DistilBertModel()
     text = "Sold! Enjoying with an ice cold @GuinnessIreland right now; Much love, Happy St. Patrick’s Day, and many thanks, folks!"
 
     pred, score = model.predict(text)
