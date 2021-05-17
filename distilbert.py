@@ -22,6 +22,9 @@
 # THE SOFTWARE. 
 import torch
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
+import sys
+
+sys.path.append("../sentimentmodels")
 
 classes = ["Negative", "Positive"]
 
