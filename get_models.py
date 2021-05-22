@@ -22,6 +22,7 @@
 # THE SOFTWARE. 
 import sys
 sys.path.append("../sentimentmodels")
+sys.path.append("./sentimentmodels")
 
 from vader import VaderModel
 from naive_bayes import NaiveBayesModel

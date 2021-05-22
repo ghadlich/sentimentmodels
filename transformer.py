@@ -21,11 +21,16 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE. 
 from transformers import pipeline
+from sentimentmodel import SentimentModel
+import torch
+from tqdm.auto import tqdm
 
 class TransformerModel(object):
 
     def __init__(self):
-        self.classifier = pipeline('sentiment-analysis')
+        device = 0 if torch.cuda.is_available() else -1
+        self.classifier = pipeline('sentiment-analysis', framework='pt', device=device)
+        # self.classifier = pipeline('sentiment-analysis')
 
     def name(self):
         return "Transformer"
@@ -36,11 +41,26 @@ class TransformerModel(object):
     def get_classifier(self):
         return self.classifier
 
+    def predict_batch(self, inputs, batch_size=20):
+        predict_ret = []
+        scores_ret = []
+
+        chunked_input = SentimentModel.chunks(inputs, batch_size)
+
+        for input in tqdm(chunked_input, total=len(chunked_input), position=0, leave=True, unit_scale=batch_size):
+            results = self.classifier(input)
+            for result in results:
+                if result['label'] == "POSITIVE":
+                    predict_ret.append("Positive")
+                else:
+                    predict_ret.append("Negative")
+                scores_ret.append(result['score'])
+
+        return list(zip(predict_ret, scores_ret))
+
     def predict(self, input_tweet):
         result = self.classifier(input_tweet)
-        if (result[0]['score'] < .75):
-            result[0]['label'] = "Neutral"
-        elif result[0]['label'] == "POSITIVE":
+        if result[0]['label'] == "POSITIVE":
             result[0]['label'] = "Positive"
         else:
             result[0]['label'] = "Negative"
@@ -50,29 +70,19 @@ class TransformerModel(object):
     def create_text(self, data):
         positive = sum(data["Positive"].values())
         negative = abs(sum(data["Negative"].values()))
-        neutral = abs(sum(data["Neutral"].values()))
-        total = positive + negative + neutral
+        total = positive + negative
         pos_percent = str(round(100*positive/total,1)) + "%"
         neg_percent = str(round(100*negative/total,1)) + "%"
-        neu_percent = str(round(100*neutral/total,1)) + "%"
 
         total_str = str(total)
 
-        text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a pretrained #BERT model from #huggingface. "
-        if (positive>(negative+neutral)):
-            text += f"A majority ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (positive>negative and positive>neutral):
-            text += f"A plurality ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (negative>(positive+neutral)):
-            text += f"A majority ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (negative>positive and negative>neutral):
-            text += f"A plurality ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (neutral>(positive+negative)):
-            text += f"A majority ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
-        elif (neutral>positive and neutral>negative):
-            text += f"A plurality ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
+        text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a {self.model_name_long()}. "
+        if (positive>negative):
+            text += f"A majority ({pos_percent}) were classified as positive."
+        elif (negative>positive):
+            text += f"A majority ({neg_percent}) were classified as negative."
         else:
-            text += f"There were an equal amount of positive, neutral, and negative tweets."
+            text += f"There were an equal amount of positive and negative tweets."
 
         text += "\n#Python #NLP #Classification #Sentiment #GrantBot"
 
@@ -81,35 +91,4 @@ class TransformerModel(object):
 if __name__ == "__main__":
 
     model = TransformerModel()
-    text = "Sold! Enjoying with an ice cold @GuinnessIreland right now; Much love, Happy St. Patrick’s Day, and many thanks, folks!"
-
-    pred, score = model.predict(text)
-
-    print("Text: \"" + text + "\" is " + pred + " with a score of " + str(score))
-
-    from nltk.corpus import twitter_samples
-
-    positive_tweets = twitter_samples.strings('positive_tweets.json')
-    negative_tweets = twitter_samples.strings('negative_tweets.json')
-
-    correct = 0
-
-    from tqdm.auto import tqdm
-
-    for text in tqdm(positive_tweets, total=len(positive_tweets), position=0, leave=True):
-        pred, score = model.predict(text)
-
-        if (pred == "Positive"):
-            correct += 1
-
-    print("Accuracy on Positive: " + str(correct/len(positive_tweets)))
-
-    correct = 0
-
-    for text in tqdm(negative_tweets, total=len(negative_tweets), position=0, leave=True):
-        pred, score = model.predict(text)
-
-        if (pred == "Negative"):
-            correct += 1
-
-    print("Accuracy on Negative: " + str(correct/len(negative_tweets)))
+    SentimentModel.eval_model(model)

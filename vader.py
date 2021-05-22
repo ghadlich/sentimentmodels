@@ -23,6 +23,8 @@
 import nltk
 nltk.download('vader_lexicon', quiet=True)
 from nltk.sentiment import SentimentIntensityAnalyzer
+from sentimentmodel import SentimentModel
+from tqdm.auto import tqdm
 
 class VaderModel(object):
 
@@ -38,12 +40,21 @@ class VaderModel(object):
     def get_classifier(self):
         return self.classifier
 
+    def predict_batch(self, inputs):
+        predict_ret = []
+        scores_ret = []
+
+        for input in tqdm(inputs, total=len(inputs), position=0, leave=True, unit_scale=1):
+            predict, score = self.predict(input)
+            predict_ret.append(predict)
+            scores_ret.append(score)
+
+        return list(zip(predict_ret, scores_ret))
+
     def predict(self, input_tweet):
         result = self.classifier.polarity_scores(input_tweet)
 
-        if (abs(result['compound']) < 0.25):
-            result['label'] = "Neutral"
-        elif result['compound'] >= 0.25:
+        if result['compound'] > 0:
             result['label'] = "Positive"
         else:
             result['label'] = "Negative"
@@ -53,29 +64,19 @@ class VaderModel(object):
     def create_text(self, data):
         positive = sum(data["Positive"].values())
         negative = abs(sum(data["Negative"].values()))
-        neutral = abs(sum(data["Neutral"].values()))
-        total = positive + negative + neutral
+        total = positive + negative
         pos_percent = str(round(100*positive/total,1)) + "%"
         neg_percent = str(round(100*negative/total,1)) + "%"
-        neu_percent = str(round(100*neutral/total,1)) + "%"
 
         total_str = str(total)
 
-        text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a pretrained #VADER model from #NLTK. "
-        if (positive>(negative+neutral)):
-            text += f"A majority ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (positive>negative and positive>neutral):
-            text += f"A plurality ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (negative>(positive+neutral)):
-            text += f"A majority ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (negative>positive and negative>neutral):
-            text += f"A plurality ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (neutral>(positive+negative)):
-            text += f"A majority ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
-        elif (neutral>positive and neutral>negative):
-            text += f"A plurality ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
+        text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a {self.model_name_long()}. "
+        if (positive>negative):
+            text += f"A majority ({pos_percent}) were classified as positive."
+        elif (negative>positive):
+            text += f"A majority ({neg_percent}) were classified as negative."
         else:
-            text += f"There were an equal amount of positive, neutral, and negative tweets."
+            text += f"There were an equal amount of positive and negative tweets."
 
         text += "\n#Python #NLP #Classification #Sentiment #GrantBot"
 
@@ -84,8 +85,4 @@ class VaderModel(object):
 if __name__ == "__main__":
 
     model = VaderModel()
-    text = "Sold! Enjoying with an ice cold @GuinnessIreland right now; Much love, Happy St. Patrick’s Day, and many thanks, folks!"
-
-    pred, score = model.predict(text)
-
-    print("Text: \"" + text + "\" is " + pred + " with a score of " + str(score))
+    SentimentModel.eval_model(model)

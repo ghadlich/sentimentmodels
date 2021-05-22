@@ -22,16 +22,17 @@
 # THE SOFTWARE. 
 import flair
 import sys
+import torch
+from tqdm.auto import tqdm
 
-sys.path.append("../sentimentmodels")
-
-classes = ["Negative", "Positive"]
+from sentimentmodel import SentimentModel
 
 import re
 
 class FlairModel(object):
 
     def __init__(self):
+        flair.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.classifier = flair.models.TextClassifier.load('en-sentiment')
 
     def name(self):
@@ -42,6 +43,32 @@ class FlairModel(object):
 
     def get_classifier(self):
         return self.classifier
+
+    def predict_batch(self, inputs, batch_size=1):
+        predict_ret = []
+        scores_ret = []
+
+        chunked_input = SentimentModel.chunks(inputs, batch_size)
+
+        for i in range(len(chunked_input)):
+            for j in range(len(chunked_input[i])):
+                chunked_input[i][j] = flair.data.Sentence(chunked_input[i][j])
+
+        for input in tqdm(chunked_input, total=len(chunked_input), position=0, leave=True, unit_scale=batch_size):
+            result = self.classifier.predict(input)
+
+            for s in input:
+                labels = str(s.labels[0])
+
+                if "POSITIVE" in labels:
+                    label = "Positive"
+                else:
+                    label = "Negative"
+                predict_ret.append(label)
+                confidence = float(re.findall("\d*\.\d*", labels)[0])
+                scores_ret.append(confidence)
+
+        return list(zip(predict_ret, scores_ret))
 
     def predict(self, text):
         s = flair.data.Sentence(text)
@@ -63,87 +90,25 @@ class FlairModel(object):
     def create_text(self, data):
         positive = sum(data["Positive"].values())
         negative = abs(sum(data["Negative"].values()))
-        neutral = abs(sum(data["Neutral"].values()))
-        total = positive + negative + neutral
+        total = positive + negative
         pos_percent = str(round(100*positive/total,1)) + "%"
         neg_percent = str(round(100*negative/total,1)) + "%"
-        neu_percent = str(round(100*neutral/total,1)) + "%"
-
-        total_str = str(total)
-
-        text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a {self.model_name_long()}. "
-        if (positive>(negative+neutral)):
-            text += f"A majority ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (positive>negative and positive>neutral):
-            text += f"A plurality ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (negative>(positive+neutral)):
-            text += f"A majority ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (negative>positive and negative>neutral):
-            text += f"A plurality ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (neutral>(positive+negative)):
-            text += f"A majority ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
-        elif (neutral>positive and neutral>negative):
-            text += f"A plurality ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
-        else:
-            text += f"There were an equal amount of positive, neutral, and negative tweets."
-
-        text += "\n#Python #NLP #Classification #Sentiment #GrantBot"
-
-        return text
-
-    def create_text(self, data):
-        positive = sum(data["Positive"].values())
-        negative = abs(sum(data["Negative"].values()))
-        total = positive + negative
 
         total_str = str(total)
 
         text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a {self.model_name_long()}. "
         if (positive>negative):
-            percent = str(round(100*positive/total,1)) + "%"
-            text += f"A majority ({percent}) were classified as positive."
-        elif (positive == negative):
-            text += f"There were an equal amount of positive and negative tweets."
+            text += f"A majority ({pos_percent}) were classified as positive."
+        elif (negative>positive):
+            text += f"A majority ({neg_percent}) were classified as negative."
         else:
-            percent = str(round(100*negative/total,1)) + "%"
-            text += f"A majority ({percent}) were classified as negative."
+            text += f"There were an equal amount of positive and negative tweets."
 
-        text += "\n#Python #NLP #Classification #Sentiment #GrantBot"
+        text += "\n#Python #NLP #PyTorch #Sentiment #GrantBot"
 
         return text
 
 if __name__ == "__main__":
 
     model = FlairModel()
-    text = "Sold! Enjoying with an ice cold @GuinnessIreland right now; Much love, Happy St. Patrick’s Day, and many thanks, folks!"
-
-    pred, score = model.predict(text)
-
-    print("Text: \"" + text + "\" is " + pred + " with a score of " + str(score))
-
-    from nltk.corpus import twitter_samples
-
-    positive_tweets = twitter_samples.strings('positive_tweets.json')
-    negative_tweets = twitter_samples.strings('negative_tweets.json')
-
-    correct = 0
-
-    from tqdm.auto import tqdm
-
-    for text in tqdm(positive_tweets, total=len(positive_tweets), position=0, leave=True):
-        pred, score = model.predict(text)
-
-        if (pred == "Positive"):
-            correct += 1
-
-    print("Accuracy on Positive: " + str(correct/len(positive_tweets)))
-
-    correct = 0
-
-    for text in tqdm(negative_tweets, total=len(negative_tweets), position=0, leave=True):
-        pred, score = model.predict(text)
-
-        if (pred == "Negative"):
-            correct += 1
-
-    print("Accuracy on Negative: " + str(correct/len(negative_tweets)))
+    SentimentModel.eval_model(model)

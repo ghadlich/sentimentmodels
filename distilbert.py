@@ -20,12 +20,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE. 
+from sentimentmodel import SentimentModel
 import torch
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
-import sys
 from tqdm.auto import tqdm
-
-sys.path.append("../sentimentmodels")
 
 classes = ["Negative", "Positive"]
 
@@ -51,15 +49,11 @@ class DistilBertModel(object):
     def get_classifier(self):
         return self.classifier
 
-    def chunks(self, l, n):
-        n = max(1, n)
-        return [l[i:i+n] for i in range(0, len(l), n)]
-
     def predict_batch(self, input, batch_size=25, disabletqdm=False):
         predict_ret = []
         scores_ret = []
 
-        chunked_input = self.chunks(input, batch_size)
+        chunked_input = SentimentModel.chunks(input, batch_size)
 
         for text in tqdm(chunked_input, total=len(chunked_input), position=0, leave=True, unit_scale=batch_size, disable=disabletqdm):
             inputs = self.tokenizer(text,
@@ -93,29 +87,19 @@ class DistilBertModel(object):
     def create_text(self, data):
         positive = sum(data["Positive"].values())
         negative = abs(sum(data["Negative"].values()))
-        neutral = abs(sum(data["Neutral"].values()))
-        total = positive + negative + neutral
+        total = positive + negative
         pos_percent = str(round(100*positive/total,1)) + "%"
         neg_percent = str(round(100*negative/total,1)) + "%"
-        neu_percent = str(round(100*neutral/total,1)) + "%"
 
         total_str = str(total)
 
         text = f"I analyzed the sentiment on the last {total_str} tweets from my home feed using a {self.model_name_long()}. "
-        if (positive>(negative+neutral)):
-            text += f"A majority ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (positive>negative and positive>neutral):
-            text += f"A plurality ({pos_percent}) were classified as positive with {neu_percent} neutral and {neg_percent} negative."
-        elif (negative>(positive+neutral)):
-            text += f"A majority ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (negative>positive and negative>neutral):
-            text += f"A plurality ({neg_percent}) were classified as negative with {neu_percent} neutral and {pos_percent} positive."
-        elif (neutral>(positive+negative)):
-            text += f"A majority ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
-        elif (neutral>positive and neutral>negative):
-            text += f"A plurality ({neu_percent}) were classified as neutral with {pos_percent} positive and {neg_percent} negative."
+        if (positive>negative):
+            text += f"A majority ({pos_percent}) were classified as positive."
+        elif (negative>positive):
+            text += f"A majority ({neg_percent}) were classified as negative."
         else:
-            text += f"There were an equal amount of positive, neutral, and negative tweets."
+            text += f"There were an equal amount of positive and negative tweets."
 
         text += "\n#Python #NLP #PyTorch #Sentiment #GrantBot"
 
@@ -124,37 +108,5 @@ class DistilBertModel(object):
 if __name__ == "__main__":
 
     model = DistilBertModel()
-    text = "Sold! Enjoying with an ice cold @GuinnessIreland right now; Much love, Happy St. Patrick’s Day, and many thanks, folks!"
 
-    pred, score = model.predict(text)
-
-    print("Text: \"" + text + "\" is " + pred + " with a score of " + str(score))
-
-    from nltk.corpus import twitter_samples
-
-    positive_tweets = twitter_samples.strings('positive_tweets.json')
-    negative_tweets = twitter_samples.strings('negative_tweets.json')
-
-    correct = 0
-
-    results = model.predict_batch(positive_tweets)
-
-    for result in results:
-        pred, score = result
-
-        if (pred == "Positive"):
-            correct += 1
-
-    print("Accuracy on Positive: " + str(correct/len(positive_tweets)))
-
-    correct = 0
-
-    results = model.predict_batch(negative_tweets)
-
-    for result in results:
-        pred, score = result
-
-        if (pred == "Negative"):
-            correct += 1
-
-    print("Accuracy on Negative: " + str(correct/len(negative_tweets)))
+    SentimentModel.eval_model(model)
