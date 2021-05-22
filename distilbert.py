@@ -30,13 +30,16 @@ classes = ["Negative", "Positive"]
 
 class DistilBertModel(object):
 
-    def __init__(self, path="./distilbert.pb"):
-        self.device = torch.device('cpu')
-        self.classifier = torch.load(path, map_location=self.device)
+    def __init__(self, path="./distilbert_100.pb"):
+
+        self.classifier = torch.load(path, map_location=torch.device('cpu'))
         self.classifier.eval()
 
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.classifier.to(self.device)
+
         self.tokenizer = DistilBertTokenizerFast.from_pretrained('distilbert-base-uncased')
-        self.labels = torch.tensor([1]).unsqueeze(0)
+        self.labels = torch.tensor([1]).unsqueeze(0).to(self.device)
 
     def name(self):
         return "DistilBert"
@@ -51,11 +54,12 @@ class DistilBertModel(object):
         inputs = self.tokenizer([text],
                                 truncation=True,
                                 padding=True,
-                                return_tensors="pt")
+                                return_tensors="pt").to(self.device)
+        
         outputs = self.classifier(**inputs, labels=self.labels)
         loss, logits = outputs[:2]
-        prediction = logits.max(1).indices
-        score = torch.softmax(logits, dim=1).tolist()[0]
+        prediction = logits.to(torch.device('cpu')).max(1).indices
+        score = torch.softmax(logits.to(torch.device('cpu')), dim=1).tolist()[0]
 
         return classes[prediction], score[prediction]
 
