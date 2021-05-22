@@ -23,6 +23,7 @@
 import torch
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 import sys
+from tqdm.auto import tqdm
 
 sys.path.append("../sentimentmodels")
 
@@ -50,18 +51,44 @@ class DistilBertModel(object):
     def get_classifier(self):
         return self.classifier
 
-    def predict(self, text):
-        inputs = self.tokenizer([text],
-                                truncation=True,
-                                padding=True,
-                                return_tensors="pt").to(self.device)
-        
-        outputs = self.classifier(**inputs, labels=self.labels)
-        loss, logits = outputs[:2]
-        prediction = logits.to(torch.device('cpu')).max(1).indices
-        score = torch.softmax(logits.to(torch.device('cpu')), dim=1).tolist()[0]
+    def chunks(self, l, n):
+        n = max(1, n)
+        return [l[i:i+n] for i in range(0, len(l), n)]
 
-        return classes[prediction], score[prediction]
+    def predict_batch(self, input, batch_size=25, disabletqdm=False):
+        predict_ret = []
+        scores_ret = []
+
+        chunked_input = self.chunks(input, batch_size)
+
+        for text in tqdm(chunked_input, total=len(chunked_input), position=0, leave=True, unit_scale=batch_size, disable=disabletqdm):
+            inputs = self.tokenizer(text,
+                                    truncation=True,
+                                    padding=True,
+                                    return_tensors="pt").to(self.device)
+
+            labels = torch.tensor([1 for _ in range(len(text))]).unsqueeze(0).to(self.device)
+            outputs = self.classifier(**inputs, labels=labels)
+            loss, logits = outputs[:2]
+
+            # Move logits and labels to CPU
+            predictions = logits.to("cpu").max(1).indices
+            
+            # Convert these logits to list of predicted labels values.
+            predictions_text = [classes[pred] for pred in predictions]
+            predict_ret += predictions_text
+
+            scores = torch.softmax(logits.to(torch.device('cpu')), dim=1).tolist()
+
+            for i in range(len(predictions)):
+                scores_ret += [scores[i][predictions[i]]]
+
+        return list(zip(predict_ret, scores_ret))
+
+    def predict(self, text):
+        prediction, score = self.predict_batch([text], batch_size=1, disabletqdm=True)[0]
+
+        return prediction, score
 
     def create_text(self, data):
         positive = sum(data["Positive"].values())
@@ -110,10 +137,10 @@ if __name__ == "__main__":
 
     correct = 0
 
-    from tqdm.auto import tqdm
+    results = model.predict_batch(positive_tweets)
 
-    for text in tqdm(positive_tweets, total=len(positive_tweets), position=0, leave=True):
-        pred, score = model.predict(text)
+    for result in results:
+        pred, score = result
 
         if (pred == "Positive"):
             correct += 1
@@ -122,8 +149,10 @@ if __name__ == "__main__":
 
     correct = 0
 
-    for text in tqdm(negative_tweets, total=len(negative_tweets), position=0, leave=True):
-        pred, score = model.predict(text)
+    results = model.predict_batch(negative_tweets)
+
+    for result in results:
+        pred, score = result
 
         if (pred == "Negative"):
             correct += 1
