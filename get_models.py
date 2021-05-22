@@ -29,9 +29,10 @@ from naive_bayes import NaiveBayesModel
 from transformer import TransformerModel
 from flair_model import FlairModel
 from distilbert import DistilBertModel
+from textblob_model import TextBlobModel
 
 def get_models():
-    models = [TransformerModel(), VaderModel(), NaiveBayesModel(), FlairModel(), DistilBertModel()]
+    models = [TransformerModel(), VaderModel(), NaiveBayesModel(), FlairModel(), DistilBertModel(), TextBlobModel()]
 
     return models
 
