@@ -38,9 +38,9 @@ def get_models():
 
 if __name__ == "__main__":
 
-    text = "Sold! Enjoying with an ice cold @GuinnessIreland right now; Much love, Happy St. Patrick’s Day, and many thanks, folks!"
+    text = "Sold! Enjoying with an ice cold @GuinnessIreland right now; Much love, Happy St. Patrick’s Day, and many thanks, folks! 🍀🍻🤘"
 
     for model in get_models():
         pred, score = model.predict(text)
 
-        print("Model: " + model.name() + " Text: \"" + text + "\" is " + pred + " with a score of " + str(score))
+        print("Model: " + model.name() + " Text: \"" + text + "\" is " + pred + " with a score of " + str(round(100*abs(float(score)), 2)) + "%")
