@@ -35,9 +35,14 @@ class DistilBertModel(object):
         self.classifier.eval()
 
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        self.classifier.to(self.device)
 
         self.tokenizer = DistilBertTokenizerFast.from_pretrained('distilbert-base-uncased')
+        self.init = False
+
+    def _init(self):
+        self.init = True
+        torch.cuda.empty_cache()
+        self.classifier.to(self.device)
         self.labels = torch.tensor([1]).unsqueeze(0).to(self.device)
 
     def name(self):
@@ -50,6 +55,9 @@ class DistilBertModel(object):
         return self.classifier
 
     def predict_batch(self, input, batch_size=25, disabletqdm=False):
+        if (not self.init):
+            self._init()
+
         predict_ret = []
         scores_ret = []
 
@@ -80,6 +88,9 @@ class DistilBertModel(object):
         return list(zip(predict_ret, scores_ret))
 
     def predict(self, text):
+        if (not self.init):
+            self._init()
+
         prediction, score = self.predict_batch([text], batch_size=1, disabletqdm=True)[0]
 
         return prediction, score

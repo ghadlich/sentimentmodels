@@ -28,8 +28,8 @@ from tqdm.auto import tqdm
 class TransformerModel(object):
 
     def __init__(self):
-        device = 0 if torch.cuda.is_available() else -1
-        self.classifier = pipeline('sentiment-analysis', framework='pt', device=device)
+
+        self.init = False
         # self.classifier = pipeline('sentiment-analysis')
 
     def name(self):
@@ -41,7 +41,15 @@ class TransformerModel(object):
     def get_classifier(self):
         return self.classifier
 
+    def _init(self):
+        self.init = True
+        torch.cuda.empty_cache()
+        device = 0 if torch.cuda.is_available() else -1
+        self.classifier = pipeline('sentiment-analysis', framework='pt', device=device)
+
     def predict_batch(self, inputs, batch_size=20):
+        if (not self.init):
+            self._init()
         predict_ret = []
         scores_ret = []
 
@@ -59,6 +67,8 @@ class TransformerModel(object):
         return list(zip(predict_ret, scores_ret))
 
     def predict(self, input_tweet):
+        if (not self.init):
+            self._init()
         result = self.classifier(input_tweet)
         if result[0]['label'] == "POSITIVE":
             result[0]['label'] = "Positive"

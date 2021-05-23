@@ -32,8 +32,8 @@ import re
 class FlairModel(object):
 
     def __init__(self):
-        flair.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        self.classifier = flair.models.TextClassifier.load('en-sentiment')
+        self.init = False
+        #flair.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     def name(self):
         return "Flair"
@@ -44,7 +44,15 @@ class FlairModel(object):
     def get_classifier(self):
         return self.classifier
 
+    def _init(self):
+        self.init = True
+        torch.cuda.empty_cache()
+        self.classifier = flair.models.TextClassifier.load('en-sentiment')
+
     def predict_batch(self, inputs, batch_size=1):
+        if (not self.init):
+            self._init()
+
         predict_ret = []
         scores_ret = []
 
@@ -71,6 +79,9 @@ class FlairModel(object):
         return list(zip(predict_ret, scores_ret))
 
     def predict(self, text):
+        if (not self.init):
+            self._init()
+
         s = flair.data.Sentence(text)
         self.classifier.predict(s)
 
