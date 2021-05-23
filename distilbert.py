@@ -24,6 +24,7 @@ from sentimentmodel import SentimentModel
 import torch
 from transformers import DistilBertTokenizerFast, DistilBertForSequenceClassification
 from tqdm.auto import tqdm
+import gc
 
 classes = ["Negative", "Positive"]
 
@@ -40,6 +41,7 @@ class DistilBertModel(object):
         self.init = False
 
     def _init(self):
+        gc.collect()
         self.init = True
         torch.cuda.empty_cache()
         self.classifier.to(self.device)
@@ -54,7 +56,7 @@ class DistilBertModel(object):
     def get_classifier(self):
         return self.classifier
 
-    def predict_batch(self, input, batch_size=25, disabletqdm=False):
+    def predict_batch(self, input, batch_size=20, disabletqdm=False):
         if (not self.init):
             self._init()
 
@@ -70,7 +72,13 @@ class DistilBertModel(object):
                                     return_tensors="pt").to(self.device)
 
             labels = torch.tensor([1 for _ in range(len(text))]).unsqueeze(0).to(self.device)
-            outputs = self.classifier(**inputs, labels=labels)
+
+            try:
+                outputs = self.classifier(**inputs, labels=labels)
+            except:
+                torch.cuda.memory_summary()
+                output = None
+
             loss, logits = outputs[:2]
 
             # Move logits and labels to CPU

@@ -25,6 +25,7 @@ from sentimentmodel import SentimentModel
 import torch
 from tqdm.auto import tqdm
 
+
 class TransformerModel(object):
 
     def __init__(self):
