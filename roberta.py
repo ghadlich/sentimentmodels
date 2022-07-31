@@ -66,30 +66,32 @@ class RoBertaModel(object):
         chunked_input = SentimentModel.chunks(input, batch_size)
 
         for text in tqdm(chunked_input, total=len(chunked_input), position=0, leave=True, unit_scale=batch_size, disable=disabletqdm):
-            inputs = self.tokenizer(text,
-                                    padding=True,
-                                    truncation=True,
-                                    return_tensors="pt").to(self.device)
-
             try:
+                inputs = self.tokenizer(text,
+                                        padding=True,
+                                        truncation=True,
+                                        max_length=128,
+                                        return_tensors="pt").to(self.device)
+
                 outputs = self.classifier(**inputs)
-            except:
+
+                logits = outputs[0]
+
+                # Move logits and labels to CPU
+                predictions = logits.to("cpu").max(1).indices
+                
+                scores = torch.softmax(logits.to(torch.device('cpu')), dim=1).tolist()
+
+                # Convert these logits to list of predicted labels values.
+                predictions_text = [classes[pred] for pred in predictions]
+                predict_ret += predictions_text
+
+                for i in range(len(predictions)):
+                    scores_ret += [scores[i]]
+            except Exception as e:
+                print("Error with GPU: " + str(e))
                 torch.cuda.memory_summary()
-                output = None
-
-            logits = outputs[0]
-
-            # Move logits and labels to CPU
-            predictions = logits.to("cpu").max(1).indices
-            
-            scores = torch.softmax(logits.to(torch.device('cpu')), dim=1).tolist()
-
-            # Convert these logits to list of predicted labels values.
-            predictions_text = [classes[pred] for pred in predictions]
-            predict_ret += predictions_text
-
-            for i in range(len(predictions)):
-                scores_ret += [scores[i]]
+                continue
 
         return list(zip(predict_ret, scores_ret))
 
